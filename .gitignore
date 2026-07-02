@@ -1,0 +1,18 @@
+# Composer dependencies
+/vendor/
+
+# Node modules (jika ada)
+node_modules/
+
+# XAMPP / environment files
+.env
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp

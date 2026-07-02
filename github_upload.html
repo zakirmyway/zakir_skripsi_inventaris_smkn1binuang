@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Persiapan Upload File ke GitHub</title>
+  <meta name="description" content="Tool client-side untuk membaca, memvalidasi, dan menyiapkan file JSON (serta file lain) sebelum di-upload ke GitHub via drag & drop browser." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <!-- JSZip CDN — untuk membuat file .zip siap upload -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg:        #0d1117;
+      --bg2:       #161b22;
+      --bg3:       #1c2128;
+      --bg4:       #0d1117;
+      --border:    #30363d;
+      --focus:     #58a6ff;
+      --txt:       #e6edf3;
+      --txt2:      #8b949e;
+      --txt3:      #484f58;
+      --blue:      #58a6ff;
+      --green:     #3fb950;
+      --orange:    #d29922;
+      --red:       #f85149;
+      --purple:    #bc8cff;
+      --shadow:    0 8px 32px rgba(0,0,0,.55);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--txt);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 72px;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      margin-bottom: 36px;
+      animation: fadeDown .55s ease both;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 50px;
+      padding: 6px 18px;
+      margin-bottom: 18px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--txt2);
+      letter-spacing: .6px;
+    }
+    .badge svg { width: 18px; height: 18px; fill: var(--txt2); }
+    header h1 {
+      font-size: clamp(1.7rem, 4vw, 2.5rem);
+      font-weight: 700;
+      background: linear-gradient(135deg, #58a6ff 0%, #bc8cff 45%, #3fb950 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+      line-height: 1.2;
+    }
+    header p {
+      color: var(--txt2);
+      font-size: 14px;
+      max-width: 520px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    /* ── Card ── */
+    .card {
+      width: 100%;
+      max-width: 760px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+      animation: fadeUp .55s ease both .08s;
+    }
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 24px;
+      background: var(--bg3);
+      border-bottom: 1px solid var(--border);
+    }
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .card-head h2 { font-size: 14px; font-weight: 600; }
+    .card-head .sub { font-size: 12px; color: var(--txt2); margin-left: auto; }
+    .card-body { padding: 24px; }
+
+    /* ── Drop Zone ── */
+    .drop-zone {
+      position: relative;
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 40px 20px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s, transform .15s;
+    }
+    .drop-zone:hover, .drop-zone.over {
+      border-color: var(--blue);
+      background: rgba(88,166,255,.06);
+      transform: scale(1.005);
+    }
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .dz-icon { font-size: 40px; margin-bottom: 12px; display: block; pointer-events: none; }
+    .drop-zone h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; pointer-events: none; }
+    .drop-zone p  { font-size: 13px; color: var(--txt2); pointer-events: none; }
+    .drop-zone p em { color: var(--blue); font-style: normal; font-weight: 500; }
+
+    .tip-box {
+      margin-top: 14px;
+      padding: 10px 14px;
+      background: rgba(88,166,255,.07);
+      border: 1px solid rgba(88,166,255,.2);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--blue);
+      line-height: 1.6;
+      text-align: left;
+    }
+    .tip-box strong { display: block; margin-bottom: 2px; }
+    .warn-box {
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: rgba(210,153,34,.08);
+      border: 1px solid rgba(210,153,34,.3);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--orange);
+      line-height: 1.6;
+      text-align: left;
+      display: none;
+    }
+    .warn-box strong { display: inline; }
+
+    /* ── File List ── */
+    #file-list-section { display: none; margin-top: 20px; }
+    .file-list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .file-list-title { font-size: 13px; font-weight: 600; color: var(--txt2); }
+    .count-badge {
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 20px;
+    }
+    .btn-clear {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--txt2);
+      font-size: 12px;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: border-color .2s, color .2s;
+    }
+    .btn-clear:hover { border-color: var(--red); color: var(--red); }
+
+    .file-items { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: border-color .2s;
+      cursor: default;
+    }
+    .file-item:hover   { border-color: rgba(88,166,255,.35); }
+    .file-item.error    { border-color: rgba(248,81,73,.35); }
+    .file-item.error .fi-name { color: var(--red); }
+    .file-item.oversize { border-color: rgba(210,153,34,.4); background: rgba(210,153,34,.04); }
+    .file-item.oversize .fi-name { color: var(--orange); }
+    .fi-icon { font-size: 18px; flex-shrink: 0; }
+    .fi-info { flex: 1; min-width: 0; }
+    .fi-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .fi-meta { font-size: 11px; color: var(--txt2); margin-top: 1px; }
+    .fi-status {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 9px;
+      border-radius: 20px;
+      flex-shrink: 0;
+    }
+    .fi-status.ok  { background: rgba(63,185,80,.15);  color: var(--green);  }
+    .fi-status.bad { background: rgba(248,81,73,.15);  color: var(--red);    }
+    .fi-status.na  { background: rgba(139,148,158,.1); color: var(--txt2);   }
+    .fi-status.big { background: rgba(210,153,34,.15); color: var(--orange); }
+    .fi-preview-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--txt2);
+      font-size: 11px;
+      padding: 3px 9px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: border-color .2s, color .2s;
+      flex-shrink: 0;
+    }
+    .fi-preview-btn:hover { border-color: var(--blue); color: var(--blue); }
+    .fi-remove-btn {
+      background: none;
+      border: none;
+      color: var(--txt3);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 0 2px;
+      transition: color .2s;
+      flex-shrink: 0;
+    }
+    .fi-remove-btn:hover { color: var(--red); }
+
+    /* ── JSON Preview Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fadeIn .2s ease;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      width: 100%;
+      max-width: 680px;
+      max-height: 80vh;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 64px rgba(0,0,0,.6);
+      animation: slideUp .2s ease;
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: var(--bg3);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .modal-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--txt2);
+      font-size: 22px;
+      cursor: pointer;
+      line-height: 1;
+      transition: color .2s;
+    }
+    .modal-close:hover { color: var(--txt); }
+    .modal-body {
+      overflow-y: auto;
+      flex: 1;
+      background: var(--bg4);
+    }
+    .modal-body pre {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.75;
+      padding: 20px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* ── Summary Bar ── */
+    .summary-bar {
+      display: none;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .sum-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+    .sum-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      border-radius: 9px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 11px 22px;
+      cursor: pointer;
+      transition: opacity .2s, transform .15s, box-shadow .2s;
+      border: none;
+      letter-spacing: .2px;
+    }
+    .btn:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+    .btn:active:not(:disabled) { transform: translateY(0); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn svg { width: 16px; height: 16px; }
+
+    .btn-green {
+      background: linear-gradient(135deg, #238636, #2ea043);
+      color: #fff;
+      box-shadow: 0 4px 18px rgba(46,160,67,.35);
+      flex: 1;
+    }
+    .btn-blue {
+      background: linear-gradient(135deg, #1f6feb, #388bfd);
+      color: #fff;
+      box-shadow: 0 4px 18px rgba(31,111,235,.35);
+      flex: 1;
+    }
+
+    /* ── Guide Steps ── */
+    .guide-list { display: flex; flex-direction: column; gap: 12px; }
+    .guide-step {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      padding: 14px 16px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      transition: border-color .2s;
+    }
+    .guide-step:hover { border-color: rgba(88,166,255,.3); }
+    .gs-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--blue);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .gs-body { flex: 1; min-width: 0; }
+    .gs-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .gs-desc  { font-size: 12px; color: var(--txt2); line-height: 1.6; }
+    .gs-desc code {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 11px;
+      color: var(--blue);
+    }
+    .gs-img {
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 12px;
+      color: var(--txt2);
+      font-style: italic;
+    }
+    .gh-url-input {
+      width: 100%;
+      background: var(--bg4);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--txt);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 8px 12px;
+      outline: none;
+      margin-top: 8px;
+      transition: border-color .2s;
+    }
+    .gh-url-input:focus { border-color: var(--focus); }
+    .gh-url-input::placeholder { color: var(--txt3); }
+    .btn-open-gh {
+      margin-top: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--blue);
+      font-size: 12px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: border-color .2s;
+    }
+    .btn-open-gh:hover { border-color: var(--blue); }
+    .btn-open-gh svg { width: 13px; height: 13px; fill: currentColor; }
+
+    /* ── Alert ── */
+    .alert {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 12px 16px;
+      border-radius: 9px;
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    .alert-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .alert-yellow { background: rgba(210,153,34,.1); border: 1px solid rgba(210,153,34,.3); color: var(--orange); }
+    .alert-green  { background: rgba(63,185,80,.1);  border: 1px solid rgba(63,185,80,.3);  color: var(--green);  }
+    .alert-blue   { background: rgba(88,166,255,.1); border: 1px solid rgba(88,166,255,.3); color: var(--blue);   }
+
+    /* ── JSON highlight ── */
+    .jk { color: #79c0ff; }
+    .js { color: #a5d6ff; }
+    .jn { color: #ffa657; }
+    .jb { color: #ff7b72; }
+    .jz { color: #8b949e; }
+
+    /* ── Animations ── */
+    @keyframes fadeDown { from { opacity:0; transform:translateY(-14px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeUp   { from { opacity:0; transform:translateY(14px);  } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeIn   { from { opacity:0; } to { opacity:1; } }
+    @keyframes slideUp  { from { opacity:0; transform:translateY(24px);  } to { opacity:1; transform:translateY(0); } }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 44px;
+      font-size: 12px;
+      color: var(--txt3);
+      text-align: center;
+      line-height: 1.8;
+    }
+    footer a { color: var(--blue); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--txt3); }
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div class="badge">
+    <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GITHUB UPLOAD HELPER
+  </div>
+  <h1>Siapkan File &amp;<br/>Upload ke GitHub</h1>
+  <p>Baca &amp; validasi file Anda di browser, lalu upload ke GitHub secara instan via <strong>drag &amp; drop</strong> di halaman repository — tanpa perlu token API.</p>
+</header>
+
+<!-- ══ STEP 1: Pilih File ══ -->
+<div class="card">
+  <div class="card-head">
+    <span class="step-num">1</span>
+    <h2>Pilih &amp; Baca File</h2>
+    <span class="sub">Semua tipe file didukung · JSON akan divalidasi otomatis</span>
+  </div>
+  <div class="card-body">
+
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" multiple />
+      <span class="dz-icon">&#128193;</span>
+      <h3>Drag &amp; Drop file di sini</h3>
+      <p>atau <em>klik untuk memilih file</em> dari perangkat Anda</p>
+    </div>
+
+    <div class="tip-box">
+      <strong>&#128161; Tips memilih banyak file sekaligus:</strong>
+      Tahan <kbd>Ctrl</kbd> (Windows) atau <kbd>Cmd</kbd> (Mac) lalu klik file-file yang ingin dipilih.
+      Bisa memilih <code>index.html</code>, <code>script.js</code>, file JSON, gambar, dll. sekaligus.
+    </div>
+    <div class="warn-box" id="oversize-warn">
+      &#9888;&nbsp;<strong>File melebihi batas 25 MB GitHub!</strong>
+      File yang ditandai <em style="color:var(--orange);font-style:normal;font-weight:600">Terlalu Besar</em> tidak dapat diupload ke GitHub via browser.
+      Pertimbangkan untuk mengompresi, memecah, atau menggunakan
+      <a href="https://git-lfs.github.com" target="_blank" rel="noopener" style="color:var(--orange)">Git LFS</a> untuk file besar.
+    </div>
+
+    <!-- File List -->
+    <div id="file-list-section">
+      <div class="file-list-header">
+        <span>
+          <span class="file-list-title">File yang dipilih &nbsp;</span>
+          <span class="count-badge" id="file-count">0</span>
+        </span>
+        <button class="btn-clear" id="btn-clear">&#128465; Hapus Semua</button>
+      </div>
+      <div class="file-items" id="file-items"></div>
+
+      <!-- Summary -->
+      <div class="summary-bar" id="summary-bar">
+        <div class="sum-item">
+          <span class="sum-dot" style="background:var(--green)"></span>
+          <span id="sum-ok">0 file valid</span>
+        </div>
+        <div class="sum-item">
+          <span class="sum-dot" style="background:var(--red)"></span>
+          <span id="sum-err">0 JSON error</span>
+        </div>
+        <div class="sum-item">
+          <span class="sum-dot" style="background:var(--txt2)"></span>
+          <span id="sum-other">0 file lain</span>
+        </div>
+        <div class="sum-item" id="sum-big-wrap" style="display:none;">
+          <span class="sum-dot" style="background:var(--orange)"></span>
+          <span id="sum-big" style="color:var(--orange);">0 terlalu besar</span>
+        </div>
+        <div class="sum-item" style="margin-left:auto;">
+          <span id="sum-size" style="color:var(--txt2);font-size:12px;">Total: 0 B</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="btn-row" id="action-row" style="display:none;">
+      <button class="btn btn-green" id="btn-zip" disabled>
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M6.5 0a.5.5 0 0 0 0 1H7v1h-.5a.5.5 0 0 0 0 1H7v1h-.5a.5.5 0 0 0 0 1H7v1h-.5a.5.5 0 0 0 0 1H7v1h-.5a.5.5 0 0 0 0 1H7v1H4.5a1.5 1.5 0 0 0-1.5 1.5v2A1.5 1.5 0 0 0 4.5 13H7v2a.5.5 0 0 0 1 0v-2h2.5a1.5 1.5 0 0 0 1.5-1.5v-2A1.5 1.5 0 0 0 10.5 8H8V7h.5a.5.5 0 0 0 0-1H8V5h.5a.5.5 0 0 0 0-1H8V3h.5a.5.5 0 0 0 0-1H8V1h.5a.5.5 0 0 0 0-1h-2zM8 8h2.5a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-5a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5H8zm0 1H6.5a.5.5 0 0 0 0 1h1v.5a.5.5 0 0 0 1 0V10H8V9z"/></svg>
+        Download .ZIP
+      </button>
+      <button class="btn btn-blue" id="btn-open-gh-upload">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        Buka Halaman Upload GitHub
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ STEP 2: Upload ke GitHub ══ -->
+<div class="card">
+  <div class="card-head">
+    <span class="step-num">2</span>
+    <h2>Upload ke GitHub (Cara Instan — Lewat Browser)</h2>
+  </div>
+  <div class="card-body">
+
+    <div class="alert alert-yellow">
+      <span class="alert-icon">&#9888;</span>
+      <div>
+        <strong>Tidak perlu Token API!</strong> Cara ini menggunakan halaman web GitHub secara langsung.
+        Cukup login ke akun GitHub Anda di browser, lalu ikuti langkah di bawah.
+      </div>
+    </div>
+
+    <!-- Panduan buka halaman upload -->
+    <div style="margin-bottom:18px;">
+      <label style="display:block;font-size:13px;font-weight:500;color:var(--txt2);margin-bottom:8px;">
+        &#128279; URL Halaman Upload Repository Anda
+      </label>
+      <input type="text" class="gh-url-input" id="gh-repo-url"
+             placeholder="https://github.com/username/nama-repo/upload/main" />
+      <button class="btn-open-gh" id="btn-goto-gh">
+        <svg viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/><path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/></svg>
+        Buka di Tab Baru
+      </button>
+    </div>
+
+    <!-- Step-by-step guide -->
+    <div class="guide-list">
+
+      <div class="guide-step">
+        <div class="gs-num">1</div>
+        <div class="gs-body">
+          <div class="gs-title">&#128274; Login ke GitHub</div>
+          <div class="gs-desc">
+            Buka <a href="https://github.com/login" target="_blank" rel="noopener" style="color:var(--blue)">github.com</a>
+            dan pastikan sudah login dengan akun Anda.
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-step">
+        <div class="gs-num">2</div>
+        <div class="gs-body">
+          <div class="gs-title">&#128193; Buka Repository &amp; Halaman Upload</div>
+          <div class="gs-desc">
+            Masuk ke repository Anda, klik tombol <code>Add file</code> → pilih
+            <code>Upload files</code>. Atau langsung buka URL dengan format:<br/>
+            <code>https://github.com/[username]/[repo]/upload/[branch]</code>
+          </div>
+          <div class="gs-img">&#128248; Tampilan tombol "Add file" ada di sebelah tombol hijau "Code"</div>
+        </div>
+      </div>
+
+      <div class="guide-step">
+        <div class="gs-num">3</div>
+        <div class="gs-body">
+          <div class="gs-title">&#128229; Drag &amp; Drop File ke Kotak Upload</div>
+          <div class="gs-desc">
+            Di halaman upload GitHub, terdapat kotak besar dengan tulisan
+            <em>"Drag files here to add them to your repository"</em>.<br/><br/>
+            <strong>Pilihan A — Upload file langsung:</strong> Tarik semua file
+            (<code>index.html</code>, <code>data/*.json</code>, <code>script.js</code>, dll.)
+            dari File Explorer / Finder langsung ke kotak tersebut.<br/><br/>
+            <strong>Pilihan B — Upload dari ZIP:</strong> Klik tombol <code>Download .ZIP</code>
+            di atas, lalu ekstrak ZIP-nya, kemudian drag semua isinya ke kotak GitHub.
+          </div>
+          <div class="gs-img">&#9888; GitHub tidak mendukung upload file ZIP langsung — file harus di-ekstrak dulu</div>
+        </div>
+      </div>
+
+      <div class="guide-step">
+        <div class="gs-num">4</div>
+        <div class="gs-body">
+          <div class="gs-title">&#9989; Isi Commit Message &amp; Klik "Commit changes"</div>
+          <div class="gs-desc">
+            Setelah file terupload ke kotak, scroll ke bawah. Isi
+            <code>Commit message</code> (contoh: <code>feat: upload website files</code>),
+            pilih branch tujuan, lalu klik tombol hijau <code>Commit changes</code>.
+          </div>
+          <div class="gs-img">&#10003; File Anda akan langsung muncul di repository setelah commit berhasil</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="alert alert-green" style="margin-top:18px; margin-bottom:0;">
+      <span class="alert-icon">&#128161;</span>
+      <div>
+        <strong>Untuk website statis (GitHub Pages):</strong>
+        Setelah upload selesai, aktifkan GitHub Pages di
+        <code>Settings → Pages → Source → main branch</code>.
+        Website Anda akan live di <code>https://[username].github.io/[repo]</code>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ JSON Preview Modal ══ -->
+<div class="modal-overlay" id="preview-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="modal-title">preview.json</span>
+      <button class="modal-close" id="modal-close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <pre id="modal-content"></pre>
+    </div>
+  </div>
+</div>
+
+<footer>
+  &#128274; File Anda <strong>tidak pernah dikirim ke server manapun</strong> — semua diproses di browser.<br/>
+  Untuk upload otomatis via API, gunakan <a href="https://docs.github.com/en/rest/repos/contents" target="_blank" rel="noopener">GitHub REST API</a>.
+</footer>
+
+<script>
+/* =====================================================
+   GitHub Upload Helper — Client-side JavaScript
+   FileReader API: membaca & memvalidasi file lokal
+   JSZip: mengemas file menjadi .zip untuk download
+   ===================================================== */
+
+// ── State ──────────────────────────────────────────────
+var fileMap = {};     // { id: { file, name, size, isJson, valid, content, error, tooBig } }
+var fileIdCounter = 0;
+
+// GitHub hard limit per file: 25 MB
+var GH_MAX_BYTES = 25 * 1024 * 1024; // 26,214,400 bytes
+
+// ── DOM Refs ────────────────────────────────────────────
+var dropZone       = document.getElementById('drop-zone');
+var fileInput      = document.getElementById('file-input');
+var fileListSect   = document.getElementById('file-list-section');
+var fileItemsEl    = document.getElementById('file-items');
+var fileCountEl    = document.getElementById('file-count');
+var summaryBar     = document.getElementById('summary-bar');
+var actionRow      = document.getElementById('action-row');
+var btnZip         = document.getElementById('btn-zip');
+var btnClear       = document.getElementById('btn-clear');
+var btnOpenGh      = document.getElementById('btn-open-gh-upload');
+var btnGotoGh      = document.getElementById('btn-goto-gh');
+var ghRepoUrl      = document.getElementById('gh-repo-url');
+var previewModal   = document.getElementById('preview-modal');
+var modalTitle     = document.getElementById('modal-title');
+var modalContent   = document.getElementById('modal-content');
+var modalClose     = document.getElementById('modal-close');
+
+// ── Drag & Drop pada drop-zone ──────────────────────────
+dropZone.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  dropZone.classList.add('over');
+});
+dropZone.addEventListener('dragleave', function(e) {
+  if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('over');
+});
+dropZone.addEventListener('drop', function(e) {
+  e.preventDefault();
+  dropZone.classList.remove('over');
+  addFiles(e.dataTransfer.files);
+});
+
+// ── File Input ──────────────────────────────────────────
+fileInput.addEventListener('change', function(e) {
+  addFiles(e.target.files);
+  e.target.value = ''; // reset agar file yang sama bisa dipilih lagi
+});
+
+// ── Tambah File ke State ────────────────────────────────
+function addFiles(fileList) {
+  for (var i = 0; i < fileList.length; i++) {
+    var f = fileList[i];
+    var id = 'f' + (++fileIdCounter);
+    var isJson  = f.name.toLowerCase().endsWith('.json');
+    var tooBig  = f.size > GH_MAX_BYTES;  // cek batas 25 MB GitHub
+
+    fileMap[id] = {
+      id:      id,
+      file:    f,
+      name:    f.name,
+      size:    f.size,
+      isJson:  isJson,
+      tooBig:  tooBig,
+      valid:   tooBig ? null : null, // null = belum dibaca
+      content: null,
+      error:   null
+    };
+
+    // Render item segera
+    renderFileItem(id);
+
+    // Baca file — skip jika terlalu besar (hemat memori)
+    if (!tooBig) {
+      readFile(id);
+    } else {
+      // Tandai langsung tanpa membaca isi
+      updateSummary();
+      updateZipBtn();
+    }
+  }
+  updateUI();
+}
+
+/* ── Baca file dengan FileReader API ──────────────────────
+   readAsText: membaca isi file sebagai string UTF-8.
+   Untuk JSON: langsung validasi dengan JSON.parse().
+   Untuk file lain: cukup tandai sebagai n/a.          */
+function readFile(id) {
+  var entry = fileMap[id];
+  var reader = new FileReader();
+
+  reader.onload = function(e) {
+    entry.content = e.target.result;
+
+    if (entry.isJson) {
+      try {
+        JSON.parse(entry.content);   // validasi
+        entry.valid = true;
+      } catch (err) {
+        entry.valid = false;
+        entry.error = err.message;
+      }
+    } else {
+      entry.valid = null; // bukan JSON, tidak perlu validasi
+    }
+
+    renderFileItem(id);
+    updateSummary();
+    updateZipBtn();
+  };
+
+  reader.onerror = function() {
+    entry.valid = false;
+    entry.error = 'Gagal membaca file';
+    renderFileItem(id);
+    updateSummary();
+  };
+
+  reader.readAsText(entry.file, 'UTF-8');
+}
+
+// ── Render satu baris file ──────────────────────────────
+function renderFileItem(id) {
+  var entry = fileMap[id];
+  var existing = document.getElementById('item-' + id);
+
+  var itemClass = '';
+  var statusLabel, statusClass;
+
+  if (entry.tooBig) {
+    // File melebihi 25 MB — tampilkan peringatan khusus
+    itemClass   = ' oversize';
+    statusLabel = '&#9888; Terlalu Besar';
+    statusClass = 'big';
+  } else if (entry.isJson) {
+    if (entry.valid === null)   { statusLabel = 'Membaca...';         statusClass = 'na';  }
+    else if (entry.valid)       { statusLabel = '&#10003; Valid JSON'; statusClass = 'ok';  }
+    else                        { statusLabel = '&#10007; JSON Error'; statusClass = 'bad'; }
+  } else {
+    statusLabel = getFileType(entry.name);
+    statusClass = 'na';
+  }
+
+  var previewBtn = (!entry.tooBig && entry.isJson && entry.content)
+    ? '<button class="fi-preview-btn" onclick="openPreview(\'' + id + '\')">&#128065; Preview</button>'
+    : '';
+
+  var sizeNote = entry.tooBig
+    ? '<span style="color:var(--orange);font-size:10px;display:block;margin-top:2px;">&#9888; ' + formatBytes(entry.size) + ' &mdash; melebihi batas 25 MB GitHub</span>'
+    : '';
+
+  var errorNote = (!entry.tooBig && entry.isJson && entry.valid === false)
+    ? '<span style="color:var(--red);font-size:10px;display:block;margin-top:2px;">&#9888; ' + escHtml(entry.error || '') + '</span>'
+    : '';
+
+  var html = '<div class="file-item' + itemClass + '" id="item-' + id + '">'
+    + '<span class="fi-icon">' + getFileIcon(entry.name) + '</span>'
+    + '<div class="fi-info">'
+    + '<div class="fi-name">' + escHtml(entry.name) + '</div>'
+    + '<div class="fi-meta">' + (entry.tooBig ? '' : formatBytes(entry.size)) + sizeNote + errorNote + '</div>'
+    + '</div>'
+    + '<span class="fi-status ' + statusClass + '">' + statusLabel + '</span>'
+    + previewBtn
+    + '<button class="fi-remove-btn" onclick="removeFile(\'' + id + '\')" title="Hapus">&#215;</button>'
+    + '</div>';
+
+  if (existing) {
+    existing.outerHTML = html;
+  } else {
+    fileItemsEl.insertAdjacentHTML('beforeend', html);
+  }
+}
+
+// ── Hapus satu file ────────────────────────────────────
+function removeFile(id) {
+  delete fileMap[id];
+  var el = document.getElementById('item-' + id);
+  if (el) {
+    el.style.transition = 'opacity .2s, transform .2s';
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(10px)';
+    setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 200);
+  }
+  updateUI();
+}
+
+// ── Hapus semua ────────────────────────────────────────
+btnClear.addEventListener('click', function() {
+  fileMap = {};
+  fileItemsEl.innerHTML = '';
+  updateUI();
+});
+
+// ── Update UI keseluruhan ──────────────────────────────
+function updateUI() {
+  var keys = Object.keys(fileMap);
+  var count = keys.length;
+
+  if (count === 0) {
+    fileListSect.style.display = 'none';
+    actionRow.style.display    = 'none';
+    summaryBar.style.display   = 'none';
+  } else {
+    fileListSect.style.display = 'block';
+    actionRow.style.display    = 'flex';
+    summaryBar.style.display   = 'flex';
+  }
+
+  fileCountEl.textContent = count;
+  updateSummary();
+  updateZipBtn();
+}
+
+// ── Update ringkasan ───────────────────────────────────
+function updateSummary() {
+  var keys    = Object.keys(fileMap);
+  var ok      = 0, err = 0, other = 0, big = 0, totalSize = 0;
+  keys.forEach(function(id) {
+    var e = fileMap[id];
+    totalSize += e.size;
+    if (e.tooBig)               big++;
+    else if (!e.isJson)         other++;
+    else if (e.valid)           ok++;
+    else if (e.valid === false) err++;
+    else                        other++;   // membaca...
+  });
+  document.getElementById('sum-ok').textContent    = ok    + ' JSON valid';
+  document.getElementById('sum-err').textContent   = err   + ' JSON error';
+  document.getElementById('sum-other').textContent = other + ' file lain';
+  document.getElementById('sum-size').textContent  = 'Total: ' + formatBytes(totalSize);
+
+  // Tampilkan/sembunyikan counter & warning oversize
+  var bigWrap = document.getElementById('sum-big-wrap');
+  var bigEl   = document.getElementById('sum-big');
+  var warnBox = document.getElementById('oversize-warn');
+  if (big > 0) {
+    bigEl.textContent         = big + ' terlalu besar (>25MB)';
+    bigWrap.style.display     = 'flex';
+    warnBox.style.display     = 'block';
+  } else {
+    bigWrap.style.display     = 'none';
+    warnBox.style.display     = 'none';
+  }
+}
+
+// ── Enable/disable ZIP button ──────────────────────────
+function updateZipBtn() {
+  var keys = Object.keys(fileMap);
+  // ZIP aktif jika ada minimal 1 file yang sudah selesai dibaca (dan tidak oversize)
+  var ready = keys.some(function(id) {
+    var e = fileMap[id];
+    return !e.tooBig && (e.content !== null || !e.isJson);
+  });
+  btnZip.disabled = !ready || keys.length === 0;
+}
+
+// ── Download ZIP ───────────────────────────────────────
+btnZip.addEventListener('click', function() {
+  var keys = Object.keys(fileMap);
+  if (keys.length === 0) return;
+
+  if (typeof JSZip === 'undefined') {
+    alert('JSZip belum termuat. Pastikan koneksi internet aktif dan refresh halaman.');
+    return;
+  }
+
+  var zip   = new JSZip();
+  var count = 0;
+  var skipped = 0;
+
+  keys.forEach(function(id) {
+    var e = fileMap[id];
+    if (e.tooBig) {
+      // Lewati file yang melebihi 25 MB — tidak bisa diupload ke GitHub
+      skipped++;
+      return;
+    }
+    if (e.content !== null) {
+      zip.file(e.name, e.content);
+      count++;
+    } else {
+      // File belum selesai dibaca — tambahkan file asli (binary)
+      zip.file(e.name, e.file);
+      count++;
+    }
+  });
+
+  if (count === 0) { alert('Belum ada file yang siap.'); return; }
+
+  btnZip.disabled = true;
+  btnZip.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;"></span> Membuat ZIP...';
+
+  // Tambahkan animasi spin
+  if (!document.getElementById('spin-style')) {
+    var s = document.createElement('style');
+    s.id = 'spin-style';
+    s.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(s);
+  }
+
+  zip.generateAsync({ type: 'blob' }).then(function(blob) {
+    var url  = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'github-upload.zip';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+
+    btnZip.disabled = false;
+    btnZip.innerHTML = '<svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16"><path d="M6.5 0a.5.5 0 0 0 0 1H7v1h-.5a.5.5 0 0 0 0 1H7v1h-.5a.5.5 0 0 0 0 1H7v1h-.5a.5.5 0 0 0 0 1H7v1h-.5a.5.5 0 0 0 0 1H7v1H4.5a1.5 1.5 0 0 0-1.5 1.5v2A1.5 1.5 0 0 0 4.5 13H7v2a.5.5 0 0 0 1 0v-2h2.5a1.5 1.5 0 0 0 1.5-1.5v-2A1.5 1.5 0 0 0 10.5 8H8V7h.5a.5.5 0 0 0 0-1H8V5h.5a.5.5 0 0 0 0-1H8V3h.5a.5.5 0 0 0 0-1H8V1h.5a.5.5 0 0 0 0-1h-2zM8 8h2.5a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-5a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5H8zm0 1H6.5a.5.5 0 0 0 0 1h1v.5a.5.5 0 0 0 1 0V10H8V9z"/></svg> Download .ZIP';
+  }).catch(function(err) {
+    alert('Gagal membuat ZIP: ' + err.message);
+    btnZip.disabled = false;
+    btnZip.textContent = 'Download .ZIP';
+  });
+});
+
+// ── Buka halaman upload GitHub ─────────────────────────
+btnOpenGh.addEventListener('click', function() {
+  var url = ghRepoUrl.value.trim();
+  if (!url) {
+    // Buka GitHub upload page umum
+    window.open('https://github.com', '_blank', 'noopener');
+    return;
+  }
+  if (!url.startsWith('http')) url = 'https://' + url;
+  window.open(url, '_blank', 'noopener');
+});
+
+btnGotoGh.addEventListener('click', function() {
+  var url = ghRepoUrl.value.trim();
+  if (!url) { alert('Masukkan URL repository GitHub terlebih dahulu.'); return; }
+  if (!url.startsWith('http')) url = 'https://' + url;
+  window.open(url, '_blank', 'noopener');
+});
+
+// ── Preview JSON Modal ─────────────────────────────────
+function openPreview(id) {
+  var entry = fileMap[id];
+  if (!entry || !entry.content) return;
+  modalTitle.textContent = entry.name;
+  try {
+    var parsed = JSON.parse(entry.content);
+    modalContent.innerHTML = syntaxHL(JSON.stringify(parsed, null, 2));
+  } catch(e) {
+    modalContent.textContent = entry.content;
+  }
+  previewModal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+modalClose.addEventListener('click', closeModal);
+previewModal.addEventListener('click', function(e) {
+  if (e.target === previewModal) closeModal();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeModal();
+});
+function closeModal() {
+  previewModal.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ── JSON Syntax Highlight ──────────────────────────────
+function syntaxHL(json) {
+  json = escHtml(json);
+  return json.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    function(m) {
+      var c = 'jn';
+      if (/^"/.test(m))          c = /:$/.test(m) ? 'jk' : 'js';
+      else if (/true|false/.test(m)) c = 'jb';
+      else if (/null/.test(m))       c = 'jz';
+      return '<span class="' + c + '">' + m + '</span>';
+    }
+  );
+}
+
+// ── Helpers ────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatBytes(b) {
+  if (b < 1024)    return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(2) + ' MB';
+}
+
+function getFileIcon(name) {
+  var ext = name.split('.').pop().toLowerCase();
+  var icons = {
+    json:'&#123;&#125;', html:'&#128196;', css:'&#127912;', js:'&#9889;',
+    ts:'&#9889;', png:'&#128247;', jpg:'&#128247;', jpeg:'&#128247;',
+    gif:'&#128247;', svg:'&#128247;', webp:'&#128247;',
+    pdf:'&#128209;', txt:'&#128196;', md:'&#128196;',
+    zip:'&#128230;', php:'&#128640;'
+  };
+  return icons[ext] || '&#128196;';
+}
+
+function getFileType(name) {
+  var ext = name.split('.').pop().toUpperCase();
+  return ext || 'FILE';
+}
+</script>
+
+</body>
+</html>
