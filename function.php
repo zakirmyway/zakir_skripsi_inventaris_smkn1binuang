@@ -2,7 +2,14 @@
 session_start(); //untuk mengecek udh pernah login belum sih 
 
 //membuat koneksi ke database
-$conn = mysqli_connect("localhost", "root", "", "stockbarang");
+// Railway: baca dari environment variable | XAMPP lokal: pakai default
+$db_host = getenv('MYSQLHOST')     ?: 'localhost';
+$db_user = getenv('MYSQLUSER')     ?: 'root';
+$db_pass = getenv('MYSQLPASSWORD') ?: '';
+$db_name = getenv('MYSQLDATABASE') ?: 'stockbarang';
+$db_port = getenv('MYSQLPORT')     ? (int)getenv('MYSQLPORT') : 3306;
+
+$conn = mysqli_connect($db_host, $db_user, $db_pass, $db_name, $db_port);
 
 //menambah barang baru
 if (isset($_POST['addnewbarang'])) {

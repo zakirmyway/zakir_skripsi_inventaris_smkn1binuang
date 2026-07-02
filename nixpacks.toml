@@ -1,0 +1,7 @@
+providers = ["php"]
+
+[phases.setup]
+nixPkgs = ["php81", "php81Extensions.mysqli", "php81Extensions.pdo_mysql", "php81Extensions.gd", "php81Extensions.mbstring", "apache"]
+
+[start]
+cmd = "apache2-foreground"
